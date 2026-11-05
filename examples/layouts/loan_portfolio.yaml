@@ -1,0 +1,34 @@
+name: loan_portfolio
+description: >
+  Daily loan-portfolio file sent by a lender to a fund administrator: one row
+  per installment. Brazilian conventions (';' separator, decimal comma, dd/mm/yyyy).
+
+file:
+  delimiter: ";"
+  decimal: ","
+  header_case: snake        # "Contract ID" / "contractId" -> contract_id
+
+columns:
+  reference_date:     { type: date, format: "%d/%m/%Y", required: true }
+  contract_id:        { required: true, pattern: "CT-\\d{6}" }
+  installment_number: { type: integer, required: true, min: 1 }
+  total_installments: { type: integer, required: true, min: 1, max: 360 }
+  lender_doc:         { type: tax_id, tax_id_kind: cnpj, required: true }
+  borrower_name:      { required: true, max_length: 120 }
+  borrower_doc:       { type: tax_id, required: true }
+  product:            { enum: [PAYROLL, PERSONAL, SME_WORKING_CAPITAL, TRADE_BILL] }
+  issue_date:         { type: date, format: "%d/%m/%Y", required: true }
+  due_date:           { type: date, format: "%d/%m/%Y", required: true }
+  face_value:         { type: decimal, required: true, min: 0.01 }
+  purchase_price:     { type: decimal, required: true, min: 0.01 }
+  annual_rate:        { type: decimal, required: true, min: 0, max: 5 }
+  status:             { required: true, enum: [CURRENT, OVERDUE, RENEGOTIATED] }
+  renegotiation_date: { type: date, format: "%d/%m/%Y" }
+
+checks:
+  - unique: [contract_id, installment_number]
+  - compare: { left: purchase_price, op: "<=", right: face_value }
+  - compare: { left: due_date, op: ">", right: issue_date }
+  - compare: { left: installment_number, op: "<=", right: total_installments }
+  - consistent: { key: [contract_id], value: borrower_doc }      # one borrower per contract
+  - required_if: { column: renegotiation_date, when: { column: status, equals: RENEGOTIATED } }
